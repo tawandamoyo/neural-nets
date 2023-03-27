@@ -8,79 +8,153 @@ const input = [[1], [0], [0], [1]];
 
 // bias length 3
 
-function initializingLayers(inputSize, hiddenLayerSize, outputSize) {
-    const hiddenLayerWeights = Array.from({ length: hiddenLayerSize }, () => {
-      return Array.from({ length: inputSize }, () => Math.random());
-    });
-    const hiddenLayerBiases = Array.from({ length: hiddenLayerSize }, () => {
-        return Array.from({ length: 1 }, () => Math.random());
-      });
-    const outputLayerWeights = Array.from({ length: outputSize }, () => {
-        return Array.from({ length: hiddenLayerSize }, () => Math.random());
-    });
-    const outputLayerBiases = Array.from({ length: outputSize }, () => {
-        return Array.from({ length: 1 }, () => Math.random());
-    });
+const initialValues = initializingLayers([4, 5, 5, 7, 5, 5, 6, 9, 5, 7, 9, 4, 8, 2]);
+let result = forwardPropagation(input, initialValues);
+console.log('untrained result: ', result[result.length - 1])
 
-    return [
-        hiddenLayerWeights,
-        hiddenLayerBiases,
-        outputLayerWeights,
-        outputLayerBiases
-    ]
-}
+console.log('initial weights', initialValues[0].layerWeights );
 
-function forwardPropagation(input, hiddenWeights, hiddenBias, outputWeight, outputBias) {
-    const multiply = matrixMultiply(hiddenWeights, input);
-    const addHiddenBias = addBias(multiply, hiddenBias);
-    const hiddenLayerValues = activate(addHiddenBias, sigmoid)
+for (let i = 0; i < 100000; i++ ) {
+    const trainingInput = numberToMatrix(Math.floor(Math.random() * 16 ));
+    backPropagation(trainingInput, initialValues);    
+} 
 
-    const multiply2 = matrixMultiply(outputWeight, hiddenLayerValues);
-    const addOutputBias = addBias(multiply2, outputBias);
-    const outputLayerValues = activate(addOutputBias, sigmoid);
+let finalResult = forwardPropagation(input, initialValues);
+console.log('trained result: ', finalResult[finalResult.length - 1]);
+console.log('final weights', initialValues[0].layerWeights );
+console.log('true result: ', getTrue(input));
 
-    return {
-        hiddenLayerValues,
-        outputLayerValues
+function initializingLayers(arr) {
+    // arr = [inputSize, 5, 3, 4]:
+
+    // inputSize, hiddenLayerSize, outputSize
+    let weightsAndBiases = [];
+
+    for (let i = 0; i < arr.length - 1; i++ ) {
+        const layerWeights = Array.from({ length: arr[i + 1]}, () => {
+            return Array.from({ length: arr[i]}, () => Math.random() * 2 - 1)
+        });
+        const layerBiases = Array.from({ length: arr[i + 1]}, () => {
+            return Array.from({ length: 1}, () => Math.random() * 2 -1)
+        })
+
+        weightsAndBiases.push({layerWeights, layerBiases})
     }
+
+    return weightsAndBiases;
+
+    // const hiddenLayerWeights = Array.from({ length: hiddenLayerSize }, () => {
+    //   return Array.from({ length: inputSize }, () => Math.random());
+    // });
+    // const hiddenLayerBiases = Array.from({ length: hiddenLayerSize }, () => {
+    //     return Array.from({ length: 1 }, () => Math.random());
+    //   });
+    // const outputLayerWeights = Array.from({ length: outputSize }, () => {
+    //     return Array.from({ length: hiddenLayerSize }, () => Math.random());
+    // });
+    // const outputLayerBiases = Array.from({ length: outputSize }, () => {
+    //     return Array.from({ length: 1 }, () => Math.random());
+    // });
+
+    // return [
+        
+    // ]
+    // return [
+    //     hiddenLayerWeights,
+    //     hiddenLayerBiases,
+    //     outputLayerWeights,
+    //     outputLayerBiases
+    // ]
 }
 
-function backPropagation(input, hiddenWeights, hiddenBias, outputWeight, outputBias) {
+function forwardPropagation(input, initArr) {
+
+    // input, hiddenWeights, hiddenBias, outputWeight, outputBias
+
+    let layerActivations = [];
+    let previousActivation = input;
+    for (let i = 0; i < initArr.length; i++ ) {
+        const product = matrixMultiply(initArr[i].layerWeights, previousActivation);
+        const biased = addBias(product, initArr[i].layerBiases);
+        const layerActivation = activate(biased, sigmoid);
+        layerActivations.push(layerActivation)
+        previousActivation = layerActivation;
+    }
+
+    return layerActivations;
+}
+
+function backPropagation(input, initArr) {
+    // input, hiddenWeights, hiddenBias, outputWeight, outputBias
     const learningRate = 0.1;
-    const {hiddenLayerValues, outputLayerValues} = forwardPropagation(input, hiddenWeights, hiddenBias, outputWeight, outputBias);
+    const outputs = forwardPropagation(input, initArr)
 
     const trueValues = getTrue(input);
-    const outputError = matrixSubtract(trueValues, outputLayerValues);
+    let error = matrixSubtract(trueValues, outputs[outputs.length - 1]);
 
-    let gradient = pointwise(outputLayerValues, sigmoidDerivative);
-    gradient = hadamard(gradient, outputError);
-    gradient = scale(gradient, learningRate);
+    for (let i = initArr.length -1; i >= 0; i--) {
+        let gradient = pointwise(outputs[i], sigmoidDerivative);
+        gradient = hadamard(gradient, error);
+        gradient = scale(gradient, learningRate);
 
-    const hiddenLayerTranspose = transpose(hiddenLayerValues);
-    const deltas = matrixMultiply(gradient, hiddenLayerTranspose);
+        const prevLayerTranspose = transpose(i === 0 ? input : outputs[i - 1]);
+        const deltas = matrixMultiply(gradient, prevLayerTranspose);
 
-    // update new weights
-    matrixAdd(outputWeight, deltas);
+        matrixAdd(initArr[i].layerWeights, deltas);
 
-    // update biases of output layer
-    matrixAdd(outputBias, gradient)
+        // update biases
+        matrixAdd(initArr[i].layerBiases, gradient);
 
-    const hiddenError = matrixMultiply(transpose(outputWeight), outputError);
+        error = matrixMultiply(transpose(initArr[i].layerWeights), error);
+    }
 
-    let gradientHidden = pointwise(hiddenLayerValues, sigmoidDerivative);
-    gradientHidden = hadamard(gradientHidden, hiddenError);
-    gradientHidden = scale(gradientHidden, learningRate)
+    // const {hiddenLayerValues, outputLayerValues} = forwardPropagation(input, hiddenWeights, hiddenBias, outputWeight, outputBias);
 
-    const inputTranspose = transpose(input);
-    const deltasHiddenLayer = matrixMultiply(gradientHidden, inputTranspose);
 
-    // update new hidden layer weights
-    matrixAdd(hiddenWeights, deltasHiddenLayer);
+    // let gradient = pointwise(outputLayerValues, sigmoidDerivative);
+    // gradient = hadamard(gradient, outputError);
+    // gradient = scale(gradient, learningRate);
 
-    // update biases of hidden layer
-    matrixAdd(hiddenBias, gradientHidden);
+    // const hiddenLayerTranspose = transpose(hiddenLayerValues);
+    // const deltas = matrixMultiply(gradient, hiddenLayerTranspose);
+
+    // // update new weights
+    // matrixAdd(outputWeight, deltas);
+
+    // // update biases of output layer
+    // matrixAdd(outputBias, gradient)
+
+    // const hiddenError = matrixMultiply(transpose(outputWeight), outputError);
+
+    // let gradientHidden = pointwise(hiddenLayerValues, sigmoidDerivative);
+    // gradientHidden = hadamard(gradientHidden, hiddenError);
+    // gradientHidden = scale(gradientHidden, learningRate)
+
+    // const inputTranspose = transpose(input);
+    // const deltasHiddenLayer = matrixMultiply(gradientHidden, inputTranspose);
+
+    // // update new hidden layer weights
+    // matrixAdd(hiddenWeights, deltasHiddenLayer);
+
+    // // update biases of hidden layer
+    // matrixAdd(hiddenBias, gradientHidden);
 
 }
+
+function getTrue(inputMatrix) {
+    let num = 0;
+    for (let i = 3; i >= 0; i--) {
+        num |= inputMatrix[i][0] << (3-i);
+    }
+    if (num > 5 && num < 10) {
+        return [[1], [0]]
+    } else {
+        return [[0], [1]]
+    }
+     
+}
+
+// ========== MATRIX OPERATIONS ======== //
 
 function numberToMatrix(num) {
     const matrix = [];
@@ -90,8 +164,6 @@ function numberToMatrix(num) {
     return matrix;
 }
   
-
-
 // where x = [a, b, c] 
 // x2 = [d, e, f]
 // product = [a*d + b*e + c*f]
@@ -112,7 +184,7 @@ function transpose(matrix) {
 }
 
 function matrixAdd (matrix, matrixTwo) {
-        for (let i = 0; i < matrix.length; i++) {
+    for (let i = 0; i < matrix.length; i++) {
         for (let j = 0; j < matrix[0].length; j ++) {
             matrix[i][j] += matrixTwo[i][j];
         }
@@ -176,34 +248,6 @@ function addBias(matrix, bias) {
     }
 }
 
-function sigmoid(x) {
-    // return (x * x)
-    return 1 / (1 + Math.exp(-x));
-}
-
-function activate(biasedMatrix, activationFunction) {
-    let result = [];
-    for (let i = 0; i < biasedMatrix.length; i++) {
-        let row = [];
-        for (let j = 0; j < biasedMatrix[0].length; j++) {
-            let element = biasedMatrix[i][j];
-            let activatedElement = activationFunction(element);
-            row.push(activatedElement)
-        }
-        result.push(row)
-    }
-    return result;
-}
-
-function outputError (predictedOutput, trueOutput) {
-    return predictedOutput - trueOutput;
-}
-
-function sigmoidDerivative (x) {
-    return ( x * (1 - x) )
-}
-
-
 function hadamard (matrix, matrixTwo) {
     let result = [];
     for (let i = 0; i < matrix.length; i++) {
@@ -241,30 +285,35 @@ function pointwise(matrix, operation) {
     return result;
 }
 
-function getTrue(inputMatrix) {
-    let num = 0;
-    for (let i = 3; i >= 0; i--) {
-        num |= inputMatrix[i][0] << (3-i);
-    }
-    if (num > 5 && num < 10) {
-        return [[1], [0]]
-    } else {
-        return [[0], [1]]
-    }
-     
+// =========== ACTIVATION OPERATIONS ========== //
+
+function sigmoid(x) {
+    // return (x * x)
+    return 1 / (1 + Math.exp(-x));
 }
 
+function activate(biasedMatrix, activationFunction) {
+    let result = [];
+    for (let i = 0; i < biasedMatrix.length; i++) {
+        let row = [];
+        for (let j = 0; j < biasedMatrix[0].length; j++) {
+            let element = biasedMatrix[i][j];
+            let activatedElement = activationFunction(element);
+            row.push(activatedElement)
+        }
+        result.push(row)
+    }
+    return result;
+}
+
+function outputError (predictedOutput, trueOutput) {
+    return predictedOutput - trueOutput;
+}
+
+function sigmoidDerivative (x) {
+    return ( x * (1 - x) )
+}
+
+// ======== //
 
 
-const initialValues = initializingLayers(4, 5, 2);
-let result = forwardPropagation(input, ...initialValues);
-console.log('untrained result: ', result.outputLayerValues)
-
-for (let i = 0; i < 100000; i++ ) {
-    const trainingInput = numberToMatrix(Math.floor(Math.random() * 16 ));
-    backPropagation(trainingInput, ...initialValues);    
-} 
-
-let finalResult = forwardPropagation(input, ...initialValues);
-console.log('trained result: ', finalResult.outputLayerValues);
-console.log('true result: ', getTrue(input));
