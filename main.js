@@ -1,4 +1,14 @@
-const input = [[1], [0], [0], [1]];
+const mnist = require('mnist');
+
+const set = mnist.set(8000, 2000);
+
+const trainingSet = set.training;
+const testSet = set.test;
+
+
+
+let trainingObject = trainingSet[0];
+// console.log(inputObj)
 
 // hidden  layer will have 5 neurons ( 4 x 5 matrix)
 
@@ -8,21 +18,64 @@ const input = [[1], [0], [0], [1]];
 
 // bias length 3
 
-const initialValues = initializingLayers([4, 5, 5, 7, 5, 5, 6, 9, 5, 7, 9, 4, 8, 2]);
-let result = forwardPropagation(input, initialValues);
+
+const initialValues = initializingLayers([784, 300, 100, 10]);
+let result = forwardPropagation(trainingObject, initialValues);
 console.log('untrained result: ', result[result.length - 1])
+let trueAnswer = trainingObject.output;
+console.log('trueAnswers', trueAnswer)
 
-console.log('initial weights', initialValues[0].layerWeights );
-
-for (let i = 0; i < 100000; i++ ) {
-    const trainingInput = numberToMatrix(Math.floor(Math.random() * 16 ));
+// console.log('initial weights', initialValues[0].layerWeights );
+let trainingRounds = 2000;
+console.log(`training for ${trainingRounds} times: `)
+for (let i = 0; i < trainingRounds; i++ ) {
+    let trainingInput = trainingSet[Math.floor(Math.random() * 800)]
     backPropagation(trainingInput, initialValues);    
 } 
 
-let finalResult = forwardPropagation(input, initialValues);
-console.log('trained result: ', finalResult[finalResult.length - 1]);
-console.log('final weights', initialValues[0].layerWeights );
-console.log('true result: ', getTrue(input));
+console.log('training complete');
+
+// for (let i = 0; i < 100000; i++ ) {
+//     const trainingInput = numberToMatrix(Math.floor(Math.random() * 16 ));
+//     backPropagation(trainingInput, initialValues);    
+// } 
+
+// let finalResult = forwardPropagation(trainingObject, initialValues);
+// console.log('trained result: ', finalResult[finalResult.length - 1]);
+// console.log('final weights', initialValues[0].layerWeights );
+// console.log('true result: ', getTrue(input));
+
+// TEST on Test Data
+
+console.log('running tests on test data: ')
+
+let testSetSize = testSet.length;
+let testResults = [];
+
+for (let i = 0; i < testSetSize; i++) {
+    let trueOutput = testSet[i].output;
+    let trueOutputIndex = trueOutput.findIndex( x => x === 1);
+
+    let result = forwardPropagation(testSet[i], initialValues);
+    let resultArray = transpose(result[result.length - 1]);
+    resultArray = resultArray[0];
+    let trainedOutputIndex = resultArray.indexOf(Math.max(...resultArray));
+
+    trueOutputIndex === trainedOutputIndex ? (() => {
+        testResults.push(trueOutputIndex);
+        console.log(`true: digit is ${trueOutputIndex} `) })()  : console.log(`false: digit was ${trueOutputIndex} but you got ${trainedOutputIndex}`);
+}
+console.log(testResults);
+
+let percentageAccuracy = (testResults.length / testSetSize ) * 100;
+
+console.log(
+    `Your model results: \n
+     With ${trainingRounds} trainings, your model accuracy is ${percentageAccuracy} % on test data of ${testSetSize} items
+    `
+)
+
+// Function definitions:
 
 function initializingLayers(arr) {
     // arr = [inputSize, 5, 3, 4]:
@@ -67,9 +120,15 @@ function initializingLayers(arr) {
     // ]
 }
 
-function forwardPropagation(input, initArr) {
+function forwardPropagation(inputObj, initArr) {
 
     // input, hiddenWeights, hiddenBias, outputWeight, outputBias
+
+    // get input vals
+    input = inputObj.input;
+    input = [input];
+    // console.log('input: ', input)
+    input = transpose(input)
 
     let layerActivations = [];
     let previousActivation = input;
@@ -84,12 +143,28 @@ function forwardPropagation(input, initArr) {
     return layerActivations;
 }
 
-function backPropagation(input, initArr) {
+function backPropagation(inputObj, initArr) {
     // input, hiddenWeights, hiddenBias, outputWeight, outputBias
     const learningRate = 0.1;
-    const outputs = forwardPropagation(input, initArr)
 
-    const trueValues = getTrue(input);
+    // get input
+    input = inputObj.input;
+    input = [input];
+    input = transpose(input)
+
+
+    const outputs = forwardPropagation(inputObj, initArr)
+
+    // retrieve true values
+
+    // const trueValues = getTrue(input);
+    let trueValues = inputObj.output;
+    trueValues = [trueValues];
+    trueValues = transpose(trueValues);
+    // console.log('calc vals', outputs[outputs.length -1]);
+    // console.log('true values', trueValues)
+    
+    
     let error = matrixSubtract(trueValues, outputs[outputs.length - 1]);
 
     for (let i = initArr.length -1; i >= 0; i--) {
@@ -291,6 +366,33 @@ function sigmoid(x) {
     // return (x * x)
     return 1 / (1 + Math.exp(-x));
 }
+function relu(x) {
+    return Math.max(0, x);
+};
+function reluDerivative(x) {
+    if (x >= 0) {
+        return 1
+    } else {
+        return 0
+    }
+};
+
+// leaky relu
+function leakyRelu(x) {
+    if (x < 0) {
+        return 0.01 * x
+    } else {
+        return x;
+    }
+};
+
+function leakyReluDerivative(x) {
+    if (x >= 0) {
+        return 1
+    } else {
+        return 0.01
+    }
+};
 
 function activate(biasedMatrix, activationFunction) {
     let result = [];
