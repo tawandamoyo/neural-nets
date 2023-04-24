@@ -1,6 +1,8 @@
+const { json } = require('express');
+const fs = require('fs');
 const mnist = require('mnist');
 
-const set = mnist.set(8000, 2000);
+const set = mnist.set(8000, 3000);
 
 const trainingSet = set.training;
 const testSet = set.test;
@@ -19,17 +21,17 @@ let trainingObject = trainingSet[0];
 // bias length 3
 
 
-const initialValues = initializingLayers([784, 300, 100, 10]);
+const initialValues = initializingLayers([784, 500, 80, 10]);
 let result = forwardPropagation(trainingObject, initialValues);
 console.log('untrained result: ', result[result.length - 1])
 let trueAnswer = trainingObject.output;
 console.log('trueAnswers', trueAnswer)
 
 // console.log('initial weights', initialValues[0].layerWeights );
-let trainingRounds = 2000;
+let trainingRounds = 3000;
 console.log(`training for ${trainingRounds} times: `)
 for (let i = 0; i < trainingRounds; i++ ) {
-    let trainingInput = trainingSet[Math.floor(Math.random() * 800)]
+    let trainingInput = trainingSet[i];
     backPropagation(trainingInput, initialValues);    
 } 
 
@@ -50,6 +52,7 @@ console.log('training complete');
 console.log('running tests on test data: ')
 
 let testSetSize = testSet.length;
+
 let testResults = [];
 
 for (let i = 0; i < testSetSize; i++) {
@@ -57,13 +60,12 @@ for (let i = 0; i < testSetSize; i++) {
     let trueOutputIndex = trueOutput.findIndex( x => x === 1);
 
     let result = forwardPropagation(testSet[i], initialValues);
-    let resultArray = transpose(result[result.length - 1]);
-    resultArray = resultArray[0];
+    let [resultArray] = transpose(result[result.length - 1]);
     let trainedOutputIndex = resultArray.indexOf(Math.max(...resultArray));
 
-    trueOutputIndex === trainedOutputIndex ? (() => {
+    if (trueOutputIndex === trainedOutputIndex) {
         testResults.push(trueOutputIndex);
-        console.log(`true: digit is ${trueOutputIndex} `) })()  : console.log(`false: digit was ${trueOutputIndex} but you got ${trainedOutputIndex}`);
+    } 
 }
 console.log(testResults);
 
@@ -74,6 +76,8 @@ console.log(
      With ${trainingRounds} trainings, your model accuracy is ${percentageAccuracy} % on test data of ${testSetSize} items
     `
 )
+
+fs.writeFileSync('./weightsAndBiases.json', JSON.stringify(initialValues))
 
 // Function definitions:
 
@@ -416,6 +420,6 @@ function sigmoidDerivative (x) {
     return ( x * (1 - x) )
 }
 
-// ======== //
+ 
 
 

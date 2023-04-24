@@ -4,7 +4,8 @@
   "description": "A neural network implemented in plain JavaScript",
   "main": "index.js",
   "scripts": {
-    "start": "npx webpack serve -c ./webpack.config.js"
+    "start": "npx webpack serve -c ./webpack.config.js",
+    "build": "npx webpack -c ./webpack.config.js"
   },
   "repository": {
     "type": "git",
